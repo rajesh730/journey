@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, X, Trash2, Sticker, Palette, Type, Smile } from 'lucide-react';
+import { Plus, X, Trash2, Sticker, Palette, Type, Smile, Edit3 } from 'lucide-react';
 import axios from 'axios';
 import { API_ENDPOINTS } from './config';
 
@@ -84,7 +84,7 @@ const FloatingQuotes = ({ theme }) => {
     };
 
     const handleMouseDown = (e, id) => {
-        if (!isLoggedIn) return; // Disable drag for logged out users
+        // Allow all users to drag stickers (logged-out users can reposition)
         const sticker = stickers.find(s => s._id === id);
         if (!sticker) return;
 
@@ -109,9 +109,9 @@ const FloatingQuotes = ({ theme }) => {
 
     const handleMouseUp = async () => {
         if (isDragging && dragId) {
-            // Save new position to DB
+            // Only save position to DB if user is logged in and not a dummy sticker
             const sticker = stickers.find(s => s._id === dragId);
-            if (sticker) {
+            if (sticker && isLoggedIn && !dragId.startsWith('dummy-')) {
                 try {
                     const token = localStorage.getItem('token');
                     const config = { headers: { 'x-auth-token': token } };
@@ -194,7 +194,7 @@ const FloatingQuotes = ({ theme }) => {
                     <div
                         key={sticker._id}
                         onMouseDown={(e) => handleMouseDown(e, sticker._id)}
-                        className={`absolute ${sticker.color} p-3 rounded-lg shadow-lg border-l-4 ${isLoggedIn ? 'cursor-move pointer-events-auto group hover:shadow-2xl' : 'opacity-80'} transition-all ${theme === 'purple' ? 'border-purple-300' : theme === 'mint' ? 'border-emerald-300' : theme === 'sunset' ? 'border-orange-300' : 'border-pink-300'}`}
+                        className={`absolute ${sticker.color} p-3 rounded-lg shadow-lg border-l-4 cursor-move pointer-events-auto group hover:shadow-2xl transition-all ${theme === 'purple' ? 'border-purple-300' : theme === 'mint' ? 'border-emerald-300' : theme === 'sunset' ? 'border-orange-300' : 'border-pink-300'}`}
                         style={{
                             left: sticker.x,
                             top: sticker.y,
@@ -202,6 +202,7 @@ const FloatingQuotes = ({ theme }) => {
                             maxWidth: '200px',
                             zIndex: dragId === sticker._id ? 100 : 10
                         }}
+                        title={!isLoggedIn ? "Drag to move! Login to create your own stickers." : ""}
                     >
                         <div className="flex items-start gap-2 relative">
                             <span className="text-2xl flex-shrink-0 select-none">{sticker.emoji}</span>

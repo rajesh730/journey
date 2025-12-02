@@ -7,7 +7,7 @@ const stickerSchema = new mongoose.Schema({
     },
     emoji: {
         type: String,
-        required: true
+        required: false // Optional for sticky notes
     },
     color: {
         type: String,
@@ -24,6 +24,17 @@ const stickerSchema = new mongoose.Schema({
     rotation: {
         type: Number,
         default: 0
+    },
+    type: {
+        type: String,
+        enum: ['sticker', 'note'],
+        default: 'sticker'
+    },
+    size: {
+        type: Number,
+        default: 1.0,
+        min: 0.5,
+        max: 2.5
     },
     owner: {
         type: mongoose.Schema.Types.ObjectId,

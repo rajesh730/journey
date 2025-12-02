@@ -30,6 +30,9 @@ const App = () => {
   });
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
 
   const flipTimeoutRef = useRef(null);
 
@@ -83,9 +86,15 @@ const App = () => {
     }
   };
 
+  const showToast = (message, type = 'info') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'info' }), 3000);
+  };
+
   const fetchBooks = async () => {
     try {
       setError(null); // Clear previous errors
+      setIsLoading(true);
       let url = API_URL;
       const params = new URLSearchParams();
 
@@ -118,6 +127,9 @@ const App = () => {
     } catch (error) {
       console.error('Error fetching books:', error);
       setError('Cannot connect to the library. Please check your connection.');
+      showToast('Failed to load books', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -144,39 +156,53 @@ const App = () => {
   };
 
   const handleCreateBook = async () => {
-    if (newBook.title.trim()) {
-      try {
-        const bookData = {
-          ...newBook,
-          author: user.username
-        };
-        const token = localStorage.getItem('token');
-        const config = { headers: { 'x-auth-token': token } };
-        const response = await axios.post(API_URL, bookData, config);
-        setBooks([response.data, ...books]);
-        setNewBook({ title: '', author: '', pages: [''], category: 'Fairy Tale', isPublic: true });
-        setIsCreatingBook(false);
-      } catch (error) {
-        console.error('Error creating book:', error);
-      }
+    if (!newBook.title.trim()) {
+      showToast('⚠️ Please add a title before saving!', 'warning');
+      return;
+    }
+    try {
+      setIsSaving(true);
+      const bookData = {
+        ...newBook,
+        author: user.username
+      };
+      const token = localStorage.getItem('token');
+      const config = { headers: { 'x-auth-token': token } };
+      const response = await axios.post(API_URL, bookData, config);
+      setBooks([response.data, ...books]);
+      setNewBook({ title: '', author: '', pages: [''], category: 'Fairy Tale', isPublic: true });
+      setIsCreatingBook(false);
+      showToast('✨ Book created successfully!', 'success');
+    } catch (error) {
+      console.error('Error creating book:', error);
+      showToast('Failed to create book', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleUpdateBook = async () => {
-    if (selectedBook && selectedBook.title.trim()) {
-      try {
-        const token = localStorage.getItem('token');
-        const config = { headers: { 'x-auth-token': token } };
-        const response = await axios.put(`${API_URL}/${selectedBook._id}`, selectedBook, config);
-        const updatedBooks = books.map(book =>
-          book._id === selectedBook._id ? response.data : book
-        );
-        setBooks(updatedBooks);
-        setSelectedBook(response.data); // Update selected book with new data
-        setIsEditingBook(false);
-      } catch (error) {
-        console.error('Error updating book:', error);
-      }
+    if (!selectedBook || !selectedBook.title.trim()) {
+      showToast('⚠️ Please add a title before saving!', 'warning');
+      return;
+    }
+    try {
+      setIsSaving(true);
+      const token = localStorage.getItem('token');
+      const config = { headers: { 'x-auth-token': token } };
+      const response = await axios.put(`${API_URL}/${selectedBook._id}`, selectedBook, config);
+      const updatedBooks = books.map(book =>
+        book._id === selectedBook._id ? response.data : book
+      );
+      setBooks(updatedBooks);
+      setSelectedBook(response.data); // Update selected book with new data
+      setIsEditingBook(false);
+      showToast('✨ Book updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating book:', error);
+      showToast('Failed to update book', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -293,6 +319,22 @@ const App = () => {
     <div className={`h-screen w-screen font-body overflow-hidden relative flex flex-col ${isNightMode ? 'text-indigo-100' : 'text-gray-800'}`}>
       <MagicCursor />
       <FloatingQuotes theme={currentTheme} />
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-24 right-8 z-[100] animate-in slide-in-from-top-5 shadow-xl rounded-2xl px-6 py-4 flex items-center gap-3 border-2 ${toast.type === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
+          toast.type === 'error' ? 'bg-red-50 border-red-300 text-red-800' :
+            toast.type === 'success' ? 'bg-green-50 border-green-300 text-green-800' :
+              'bg-blue-50 border-blue-300 text-blue-800'
+          }`}>
+          <span className="text-2xl">
+            {toast.type === 'warning' ? '⚠️' :
+              toast.type === 'error' ? '❌' :
+                toast.type === 'success' ? '✅' : 'ℹ️'}
+          </span>
+          <span className="font-ui font-medium">{toast.message}</span>
+        </div>
+      )}
 
       {/* Living Background (Floating Petals) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -744,8 +786,21 @@ const App = () => {
 
                       <div className="flex justify-between items-center bg-pink-50 p-3 rounded-2xl border border-pink-100 shadow-sm">
                         <div className="flex items-center space-x-2">
-                          <button onClick={isCreatingBook ? handleCreateBook : handleUpdateBook} className="bg-green-400 hover:bg-green-500 text-white px-4 py-1.5 rounded-full font-ui shadow-md flex items-center text-sm transform hover:scale-105 transition-all">
-                            <Save className="h-3.5 w-3.5 mr-1.5" /> Save
+                          <button
+                            onClick={isCreatingBook ? handleCreateBook : handleUpdateBook}
+                            disabled={isSaving}
+                            className="bg-green-400 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-full font-ui shadow-md flex items-center text-sm transform hover:scale-105 transition-all"
+                          >
+                            {isSaving ? (
+                              <>
+                                <div className="h-3.5 w-3.5 mr-1.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-3.5 w-3.5 mr-1.5" /> Save
+                              </>
+                            )}
                           </button>
                           <button onClick={() => { setIsCreatingBook(false); setIsEditingBook(false); }} className="bg-gray-300 hover:bg-gray-400 text-gray-600 px-4 py-1.5 rounded-full font-ui shadow-md text-sm transform hover:scale-105 transition-all">
                             Cancel
